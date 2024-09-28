@@ -1,6 +1,6 @@
 import os
 
-os.remove(".git")
+os.rmdir(".git")
 os.system("pre-commit install")
 
 os.system("git init")
