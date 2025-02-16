@@ -16,6 +16,62 @@ import ujson
 
 from src import shared
 
+from .client import LocalBroadcastClient, UDPClient
+from .server import LocalBroadcastServer, UDPServer
+
+
+class Button:
+    DEFAULT_COLORS = {
+        "bg": (100, 100, 100),
+        "text": "snow",
+        "hover": {
+            "bg": "grey",
+            "text": (220, 220, 220),
+        },
+        "clicked": {
+            "bg": "purple",
+            "text": "seagreen",
+        },
+    }
+
+    def __init__(
+        self,
+        text: str,
+        rect: pygame.Rect,
+        colors: None | dict[str, pygame.typing.ColorLike] = None,
+    ) -> None:
+        self.text = text
+        self.rect = rect
+        self.font = load_font(None, int(rect.height * 0.7))
+
+        if colors is None:
+            self.colors = Button.DEFAULT_COLORS.copy()
+        else:
+            self.colors = colors
+
+        self.just_clicked = False
+        self.is_hovering = False
+
+    def update(self):
+        self.is_hovering = self.rect.collidepoint(shared.mouse_pos)
+        self.just_clicked = shared.mjr[0] and self.is_hovering
+
+    def draw(self):
+        colors = self.colors
+        if self.is_hovering:
+            colors = self.colors["hover"]
+            if shared.mouse_press[0]:
+                colors = self.colors["clicked"]
+        if self.just_clicked:
+            colors = self.colors["clicked"]
+
+        pygame.draw.rect(shared.screen, colors["bg"], self.rect)
+
+        text_surf = self.font.render(self.text, True, colors["text"])
+        text_rect = text_surf.get_rect(center=self.rect.center)
+
+        shared.screen.blit(text_surf, text_rect)
+
 
 class ItemSelector:
     """Lets you select an item"""
@@ -142,13 +198,13 @@ class WorldMap:
             image = cls.get_placeholder_img()
             self.entities.append(MapItem(position, cls, image))
 
-    def dump(self, file_path: str | Path) -> None:
+    def dump(self) -> None:
         jsonable_map = [
             [entity.entity_type.__name__, (entity.pos.x, entity.pos.y)]
             for entity in self.entities
         ]
 
-        with open(file_path, "w") as f:
+        with open(self.file_path, "w") as f:
             ujson.dump(jsonable_map, f, indent=2)
 
     def load(self) -> list:
@@ -223,16 +279,32 @@ class _CommandBar:
 class WorldPlacementHandler:
     """Handles the placement of entities into the world"""
 
-    def __init__(self) -> None:
-
-        self.current_keybinds_file_chosen = "assets/editor_keybinds/1.json"
+    def __init__(
+        self,
+        world_map: WorldMap,
+        starting_keybinds_file_name: str,
+        left_bounds: float | None = None,
+        right_bounds: float | None = None,
+        top_bounds: float | None = None,
+        bottom_bounds: float | None = None,
+    ) -> None:
+        self.world_map = world_map
+        self.check_if_dir_exists()
+        self.current_keybinds_file_chosen = (
+            f"assets/editor_keybinds/{starting_keybinds_file_name}.json"
+        )
         with open(self.current_keybinds_file_chosen) as f:
             self.last_config = ujson.load(f)
             self.last_read_time = time.time()
 
+        self.left_bounds = left_bounds
+        self.right_bounds = right_bounds
+        self.top_bounds = top_bounds
+        self.bottom_bounds = bottom_bounds
+
         self.mode = PlacementMode.GRID
         self.current_entity_pos = pygame.Vector2()
-        self.current_entity_type = shared.world_map.reverse_entity_class_map[
+        self.current_entity_type = self.world_map.reverse_entity_class_map[
             list(self.last_config.values())[0]
         ]
         self.current_entity_image = pygame.Surface((50, 50))
@@ -241,21 +313,31 @@ class WorldPlacementHandler:
         self.placement_modes = itertools.cycle([PlacementMode.FREE, PlacementMode.GRID])
 
         self._last_placed_pos = pygame.Vector2(0, 0)
+        self._last_free_placement = pygame.Vector2(0, 0)
+        self._out_of_bounds = False
 
         self.command_bar = _CommandBar()
 
+    def check_if_dir_exists(self):
+        if not Path("assets/editor_keybinds").exists():
+            raise FileNotFoundError(
+                "To use `WorldPlacementHandler` an editor_keybinds/ directory needs to be present and populated with keybinds"
+            )
+
     def on_place(self):
-        if not shared.mouse_press[0]:
+        if not shared.mouse_press[0] or self._out_of_bounds:
             return
 
-        for item in shared.world_map.entities:
+        for item in self.world_map.entities:
             if self.crect.colliderect(item.rect):
-                return False
+                return
 
+        if self.mode == PlacementMode.FREE:
+            self._last_free_placement = self.current_entity_pos.copy()
         self._last_placed_pos = pygame.Vector2(
             self.current_entity_image.get_rect(topleft=self.current_entity_pos).center
         )
-        shared.world_map.entities.append(
+        self.world_map.entities.append(
             MapItem(
                 self.current_entity_pos,
                 self.current_entity_type,
@@ -301,20 +383,37 @@ class WorldPlacementHandler:
             self.last_config = config
 
         if self.command_bar.command_just_ejected:
-            self.current_entity_type = shared.world_map.reverse_entity_class_map[
+            self.current_entity_type = self.world_map.reverse_entity_class_map[
                 list(self.last_config.values())[0]
             ]
 
         for keybind, class_name in config.items():
             if shared.kp[getattr(pygame, keybind)]:
                 print(f"Current Entity selected: `{class_name}`")
-                self.current_entity_type = shared.world_map.reverse_entity_class_map[
+                self.current_entity_type = self.world_map.reverse_entity_class_map[
                     class_name
                 ]
 
-        if self.mode == PlacementMode.FREE:
-            self.current_entity_pos = shared.mouse_pos + shared.camera.offset
-        elif self.mode == PlacementMode.GRID:
+        self.current_entity_pos = shared.mouse_pos + shared.camera.offset
+
+        self._out_of_bounds = False
+        offset = self.current_entity_pos
+        if self.left_bounds is not None:
+            if offset.x < self.left_bounds:
+                self._out_of_bounds = True
+
+        if self.right_bounds is not None:
+            if offset.x > self.right_bounds:
+                self._out_of_bounds = True
+
+        if self.top_bounds is not None:
+            if offset.y < self.top_bounds:
+                self._out_of_bounds = True
+        if self.bottom_bounds is not None:
+            if offset.y > self.bottom_bounds:
+                self._out_of_bounds = True
+
+        if self.mode == PlacementMode.GRID:
             self.current_entity_pos = shared.mouse_pos + shared.camera.offset
             width, height = self.current_entity_image.get_size()
             self.current_entity_pos.x //= width
@@ -329,7 +428,7 @@ class WorldPlacementHandler:
         self.on_place()
 
     def draw(self):
-        if not self.command_bar._command_being_typed:
+        if not self.command_bar._command_being_typed and not self._out_of_bounds:
             shared.screen.blit(
                 self.current_entity_image,
                 shared.camera.transform(self.current_entity_pos),
@@ -338,7 +437,18 @@ class WorldPlacementHandler:
 
 
 class Camera:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        left_bounds: float | None = None,
+        right_bounds: float | None = None,
+        top_bounds: float | None = None,
+        bottom_bounds: float | None = None,
+    ) -> None:
+
+        self.left_bounds = left_bounds
+        self.right_bounds = right_bounds
+        self.top_bounds = top_bounds
+        self.bottom_bounds = bottom_bounds
         self.offset = pygame.Vector2()
 
     def attach_to(self, pos, smoothness_factor=0.08):
@@ -348,6 +458,25 @@ class Camera:
         self.offset.y += (
             pos[1] - self.offset.y - (shared.srect.height // 2)
         ) * smoothness_factor
+
+    def bound(self):
+        offset = self.offset
+
+        if self.left_bounds is not None:
+            if offset.x < self.left_bounds:
+                offset.x = self.left_bounds
+
+        if self.right_bounds is not None:
+            if offset.x > self.right_bounds - shared.srect.width:
+                offset.x = self.right_bounds - shared.srect.width
+
+        if self.top_bounds is not None:
+            if offset.y < self.top_bounds:
+                offset.y = self.top_bounds
+
+        if self.bottom_bounds is not None:
+            if offset.y > self.bottom_bounds - shared.srect.height:
+                offset.y = self.bottom_bounds - shared.srect.height
 
     def transform(self, pos) -> pygame.Vector2 | pygame.Rect | pygame.FRect:
         if isinstance(pos, pygame.Rect) or isinstance(pos, pygame.FRect):
@@ -417,11 +546,13 @@ class Collider:
     """Have as attribute to entity"""
 
     all_colliders: list[t.Self] = []
+    temp_colliders: list[t.Self] = []
 
-    def __init__(self, pos, size) -> None:
+    def __init__(self, pos, size, temp: bool = False) -> None:
         self.pos = pygame.Vector2(pos)
         self.size = size
-        Collider.all_colliders.append(self)
+        if not temp:
+            Collider.all_colliders.append(self)
 
     @property
     def rect(self) -> pygame.FRect:
@@ -434,7 +565,7 @@ class Collider:
         possible_x = []
         possible_y = []
 
-        for collider in Collider.all_colliders:
+        for collider in Collider.all_colliders + Collider.temp_colliders:
             if collider is self:
                 continue
 

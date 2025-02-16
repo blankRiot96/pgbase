@@ -18,12 +18,16 @@ class StateManager:
         }
 
         shared.next_state = State.GAME
+        self.set_state()
+
+    def set_state(self):
         self.state_obj: StateLike = self.state_dict.get(shared.next_state)()
+        shared.next_state = None
 
     def update(self):
         self.state_obj.update()
         if shared.next_state is not None:
-            self.state_obj = self.state_dict.get(shared.next_state)()
+            self.set_state()
 
     def draw(self):
         self.state_obj.draw()
