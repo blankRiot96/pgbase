@@ -1,5 +1,6 @@
 from src import shared
 
+
 class Gravity:
     """Applies gravity"""
 
@@ -11,3 +12,6 @@ class Gravity:
         if self.velocity > shared.MAX_FALL_VELOCITY:
             self.velocity = shared.MAX_FALL_VELOCITY
 
+
+class HitFade:
+    """Color hit fade"""

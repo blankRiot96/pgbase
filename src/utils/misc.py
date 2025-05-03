@@ -1,9 +1,63 @@
-import sys, functools, pygame
+import functools
+import math
+import sys
+import time
+import typing as t
 from pathlib import Path
 
-import math
+import pygame
 
-import time
+from src import shared
+
+
+def updater(entities):
+    for entity in entities[:]:
+        entity.update()
+
+        if not entity.alive:
+            entities.remove(entity)
+
+
+def drawer(entities):
+    for entity in entities:
+        entity.draw()
+
+
+def rad_to_mouse(pos: t.Sequence):
+    return math.atan2(
+        (shared.mouse_pos[1] + shared.camera.offset.y) - pos[1],
+        (shared.mouse_pos[0] + shared.camera.offset.x) - pos[0],
+    )
+
+
+def darken_image(image: pygame.Surface, alpha: float) -> pygame.Surface:
+    darkened = image.copy()
+    overlay = pygame.Surface(image.get_size(), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, int(alpha)))  # Directly fill with alpha
+    darkened.blit(overlay, (0, 0))
+    return darkened
+
+
+def bound_image(image: pygame.Surface):
+    return image.subsurface(image.get_bounding_rect())
+
+
+def debug_rect(rect: pygame.typing.RectLike):
+    pygame.draw.rect(shared.screen, "red", shared.camera.transform(rect), 1)
+
+
+def get_mid_point(vec1: pygame.Vector2, vec2: pygame.Vector2) -> pygame.Vector2:
+    return pygame.Vector2(vec1.x + vec2.x, vec1.y + vec2.y) * 0.5
+
+
+def move_towards_rad(
+    vec: pygame.Vector2, radians: float, dist: float
+) -> pygame.Vector2:
+    v = vec.copy()
+    v.x += math.cos(radians) * dist
+    v.y += math.sin(-radians) * dist
+
+    return v
 
 
 def circle_surf(radius, color):
@@ -38,7 +92,7 @@ def get_asset_path(path):
     return path
 
 
-@functools.lru_cache
+@functools.cache
 def load_image(
     path: str,
     alpha: bool,
@@ -68,7 +122,7 @@ def load_font(name: str | None, size: int) -> pygame.Font:
 
 class Timer:
     """
-    Class to check if time has passed.
+    Class to check if time has passed. Repeatedly.
     """
 
     def __init__(self, time_to_pass: float):
@@ -83,3 +137,32 @@ class Timer:
             self.start = time.perf_counter()
             return True
         return False
+
+
+class CooldownTimer:
+    """
+    Operates once and then needs to be started again explicitely
+    """
+
+    def __init__(self, seconds: float) -> None:
+        self.seconds = seconds
+        self.is_cooling_down = False
+        self.start_time = None
+        self.amount_cooled = 1.0
+
+    def start(self):
+        self.is_cooling_down = True
+        self.amount_cooled = 0.0
+        self.start_time = time.perf_counter()
+
+    def update(self):
+        if not self.is_cooling_down:
+            return
+
+        time_passed = time.perf_counter() - self.start_time  # type: ignore
+        self.amount_cooled = time_passed / self.seconds
+
+        if time_passed >= self.seconds:
+            self.is_cooling_down = False
+            self.amount_cooled = 1.0
+            self.start_time = None

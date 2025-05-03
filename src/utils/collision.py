@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from enum import Enum, auto
-import pygame
-from dataclasses import dataclass
-from src import shared
-from collections import defaultdict
 import typing as t
+from collections import defaultdict
+from dataclasses import dataclass
+from enum import Enum, auto
+
+import pygame
+
+from src import shared
+
 
 class CollisionSide(Enum):
     RIGHT = auto()
@@ -111,5 +114,3 @@ class Collider:
             shared.camera.transform(self.rect),
             width=not fill,
         )
-
-

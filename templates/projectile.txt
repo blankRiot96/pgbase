@@ -1,0 +1,30 @@
+import math
+
+import pygame
+
+from src import shared, utils
+
+
+class Projectile:
+    def __init__(self, pos, radians, speed, decel) -> None:
+        self.pos = pygame.Vector2(pos)
+        self.radians = radians
+        self.speed = speed
+        self.decel = decel
+
+    @classmethod
+    def from_mouse(cls, pos, velocity, decel):
+        return cls(
+            pos,
+            math.atan2(shared.mouse_pos[1] - pos[1], shared.mouse_pos[0] - pos[0]),
+            velocity,
+            decel,
+        )
+
+    def update(self):
+        self.speed -= self.decel * shared.dt
+        self.pos.x += math.cos(self.radians) * self.speed * shared.dt
+        self.pos.y += math.sin(-self.radians) * self.speed * shared.dt
+
+    def draw(self):
+        pass

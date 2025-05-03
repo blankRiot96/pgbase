@@ -1,6 +1,9 @@
 import pygame
-from .misc import load_font
+
 from src import shared
+
+from .misc import load_font
+
 
 class Button:
     DEFAULT_COLORS = {

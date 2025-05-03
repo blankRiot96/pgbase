@@ -2,6 +2,7 @@ import pygame
 
 from src import shared
 
+
 class Camera:
     def __init__(
         self,
@@ -48,4 +49,3 @@ class Camera:
         if isinstance(pos, pygame.Rect) or isinstance(pos, pygame.FRect):
             return pos.move(*-self.offset)
         return pygame.Vector2(pos[0] - self.offset.x, pos[1] - self.offset.y)
-
