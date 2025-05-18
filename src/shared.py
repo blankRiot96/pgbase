@@ -6,10 +6,12 @@ import pygame
 
 if t.TYPE_CHECKING:
     from src.enums import State
+    from src.utils import Camera
 
 # Canvas
 screen: pygame.Surface
 srect: pygame.Rect
+camera: Camera
 
 # Events
 events: list[pygame.event.Event]

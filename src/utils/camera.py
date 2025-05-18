@@ -17,6 +17,7 @@ class Camera:
         self.top_bounds = top_bounds
         self.bottom_bounds = bottom_bounds
         self.offset = pygame.Vector2()
+        self.rect = pygame.Rect(0, 0, shared.srect.width, shared.srect.height)
 
     def attach_to(self, pos, smoothness_factor=0.08):
         self.offset.x += (
@@ -25,6 +26,8 @@ class Camera:
         self.offset.y += (
             pos[1] - self.offset.y - (shared.srect.height // 2)
         ) * smoothness_factor
+
+        self.rect.topleft = self.offset
 
     def bound(self):
         offset = self.offset
