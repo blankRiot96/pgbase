@@ -3,3 +3,5 @@ repos:
   rev: v0.11.13
   hooks:
     - id: ruff-format
+    - id: ruff
+      args: [--select=I001]
