@@ -11,7 +11,6 @@ class Camera:
         top_bounds: float | None = None,
         bottom_bounds: float | None = None,
     ) -> None:
-
         self.left_bounds = left_bounds
         self.right_bounds = right_bounds
         self.top_bounds = top_bounds

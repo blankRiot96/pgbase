@@ -1,6 +1,6 @@
-import pygame
 
 from src import shared
+import pygame
 from src.states import StateManager
 
 

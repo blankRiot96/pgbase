@@ -13,7 +13,7 @@ class StateLike(t.Protocol):
 
 class StateManager:
     def __init__(self) -> None:
-        self.state_dict: dict[State, StateLike] = {
+        self.state_dict: dict[State, t.Type[StateLike]] = {
             State.GAME: GameState,
         }
 
@@ -21,7 +21,7 @@ class StateManager:
         self.set_state()
 
     def set_state(self):
-        self.state_obj: StateLike = self.state_dict.get(shared.next_state)()
+        self.state_obj: StateLike = self.state_dict.get(shared.next_state)()  # type: ignore
         shared.next_state = None
 
     def update(self):
