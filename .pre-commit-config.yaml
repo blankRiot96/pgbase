@@ -4,4 +4,4 @@ repos:
   hooks:
     - id: ruff-format
     - id: ruff
-      args: [--select=I001]
+      args: [--select=I001, --fix]
