@@ -3,6 +3,8 @@ from __future__ import annotations
 import typing as t
 
 if t.TYPE_CHECKING:
+    import itertools
+
     import pygame
 
     from src.enums import State
