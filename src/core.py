@@ -18,7 +18,7 @@ class Core:
     def get_events(self):
         shared.events = pygame.event.get()
         shared.dt = shared.clock.tick(60) / 1000
-        shared.dt = max(shared.dt, 0.1)
+        shared.dt = min(shared.dt, 0.1)
         shared.keys = pygame.key.get_pressed()
         shared.kp = pygame.key.get_just_pressed()
         shared.kr = pygame.key.get_just_released()
